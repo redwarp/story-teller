@@ -19,7 +19,7 @@ struct Handler {
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            println!("Received command interaction: {:#?}", command);
+            println!("Received command interaction: {:#?}", command.data.kind);
             let content = match command.data.name.as_str() {
                 "ping" => "Pong!".to_string(),
                 "pong" => "Ping!".to_string(),
@@ -29,6 +29,7 @@ impl EventHandler for Handler {
                     let count = database.get_count().unwrap();
                     format!("Count is now {count}")
                 }
+                "upload" => "Trying to upload I see!".to_string(),
                 _ => "not implemented :(".to_string(),
             };
 
@@ -71,13 +72,23 @@ impl EventHandler for Handler {
                         .name("increment")
                         .description("Increments a counter")
                 })
+                .create_application_command(|command| {
+                    command
+                        .name("upload")
+                        .description("Upload a story")
+                        .create_option(|option| {
+                            option.kind(
+                                serenity::model::prelude::command::CommandOptionType::Attachment,
+                            ).name("file").required(true).description("The file to upload")
+                        })
+                })
         })
         .await
         .unwrap();
     }
 
     async fn reaction_add(&self, _ctx: Context, add_reaction: Reaction) {
-        println!("Reaction added: {:#?}", add_reaction);
+        println!("Reaction added: {:#?}", add_reaction.emoji);
     }
 }
 
