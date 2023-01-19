@@ -29,7 +29,7 @@ impl EventHandler for Handler {
                     let count = database.get_count().unwrap();
                     format!("Count is now {count}")
                 }
-                "upload" => "Trying to upload I see!".to_string(),
+                "uploadstory" => "Trying to upload I see!".to_string(),
                 _ => "not implemented :(".to_string(),
             };
 
@@ -74,7 +74,7 @@ impl EventHandler for Handler {
                 })
                 .create_application_command(|command| {
                     command
-                        .name("upload")
+                        .name("uploadstory")
                         .description("Upload a story")
                         .create_option(|option| {
                             option.kind(
