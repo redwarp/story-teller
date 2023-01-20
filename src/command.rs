@@ -1,6 +1,6 @@
 use serenity::{
     builder::{CreateApplicationCommand, CreateApplicationCommands},
-    model::prelude::command::CommandOptionType,
+    model::{prelude::command::CommandOptionType, Permissions},
 };
 
 pub trait SlashCommand {
@@ -57,6 +57,7 @@ impl SlashCommand for UploadStoryCommand {
         command
             .name(Self::NAME)
             .description("Upload a story")
+            .default_member_permissions(Permissions::ADMINISTRATOR)
             .create_option(|option| {
                 option
                     .kind(CommandOptionType::Attachment)
@@ -64,6 +65,21 @@ impl SlashCommand for UploadStoryCommand {
                     .required(true)
                     .description("The story to upload")
             })
+    }
+}
+
+pub struct DeleteStoryCommand;
+
+impl SlashCommand for DeleteStoryCommand {
+    const NAME: &'static str = "deletestory";
+
+    fn create_application_command(
+        command: &mut CreateApplicationCommand,
+    ) -> &mut CreateApplicationCommand {
+        command
+            .name(Self::NAME)
+            .description("Delete a story hosted on the guild")
+            .default_member_permissions(Permissions::ADMINISTRATOR)
     }
 }
 

@@ -3,6 +3,7 @@ use std::env;
 use anyhow::Result;
 use command::{IncrementCommand, UploadStoryCommand};
 use config::Config;
+use interaction::{actual_deletion, delete_story_interaction, DELETE_STORY_MENU};
 use persistance::Storage;
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
@@ -11,7 +12,9 @@ use serenity::model::prelude::interaction::Interaction;
 use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
-use crate::command::{PingCommand, PongCommand, SlashCommand, SlashCommandCreator};
+use crate::command::{
+    DeleteStoryCommand, PingCommand, PongCommand, SlashCommand, SlashCommandCreator,
+};
 use crate::interaction::{
     increment_interaction, react_interaction, text_interaction, upload_story_interaction,
 };
@@ -43,11 +46,28 @@ impl EventHandler for Handler {
                     increment_interaction(self, &ctx, &command).await;
                     react_interaction('⏰', &ctx, &command).await;
                 }
-                UploadStoryCommand::NAME => upload_story_interaction(self, &ctx, &command).await,
-                _ => {
-                    println!("Not implemented :(");
+                UploadStoryCommand::NAME => {
+                    upload_story_interaction(self, &ctx, &command).await;
+                }
+                DeleteStoryCommand::NAME => {
+                    delete_story_interaction(self, &ctx, &command).await;
+                }
+                rest => {
+                    println!("Command {rest} not implemented :(");
+                    text_interaction(
+                        format!("Command `{rest}` not implemented :("),
+                        &ctx,
+                        &command,
+                    )
+                    .await;
                 }
             }
+        } else if let Interaction::MessageComponent(message_component) = interaction {
+            if message_component.data.custom_id.as_str() == DELETE_STORY_MENU {
+                actual_deletion(self, &ctx, &message_component).await;
+            }
+        } else {
+            println!("Something happened");
         }
     }
 
@@ -60,6 +80,7 @@ impl EventHandler for Handler {
                 .create_slash_command::<PongCommand>()
                 .create_slash_command::<IncrementCommand>()
                 .create_slash_command::<UploadStoryCommand>()
+                .create_slash_command::<DeleteStoryCommand>()
         })
         .await
         .unwrap();

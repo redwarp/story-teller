@@ -11,17 +11,29 @@ use uuid::Uuid;
 use crate::utils::verify_story;
 
 const CREATE_COUNTER: &str = "
-create table if not exists counter(
+CREATE TABLE IF NOT EXISTS counter(
     id integer primary key,
     count integer not null
-)";
+);";
 
 const CREATE_STORIES: &str = "
 create table if not exists stories(
     id integer primary key autoincrement,
     name text not null,
     filename text not null
-)";
+);";
+
+const CREATE_STORY_STATE: &str = "
+CREATE TABLE IF NOT EXISTS story_state(
+    `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+    `player_id` TEXT NOT NULL UNIQUE,
+    `story_id` INT NOT NULL,
+    `current_step` TEXT NOT NULL,
+    CONSTRAINT fk_story
+        FOREIGN KEY (`story_id`)
+        REFERENCES `stories`(`id`)
+        ON DELETE CASCADE
+);";
 
 pub struct Storage<P: AsRef<Path>> {
     storage_folder: P,
@@ -42,6 +54,7 @@ where
             .prepare("SELECT name FROM sqlite_schema where type='table' and name='counter'")?;
 
         let exists = check.exists([])?;
+        drop(check);
 
         create_tables(&connection)?;
 
@@ -49,7 +62,6 @@ where
             println!("No table yet, creating");
             connection.execute("insert into counter (id, count) values (0, 0)", [])?;
         }
-        drop(check);
 
         Ok(Self {
             connection,
@@ -108,6 +120,53 @@ where
         Ok(())
     }
 
+    /// Delete story with the id, and returns the name of the deleted story.
+    pub fn delete_story(&self, story_id: u64) -> Result<String> {
+        let (name, filename) = self
+            .connection
+            .query_row_and_then::<(String, String), anyhow::Error, _, _>(
+                "SELECT name, filename FROM stories WHERE `id`=?",
+                [story_id],
+                |row| {
+                    let name: String = row.get(0)?;
+                    let filename: String = row.get(1)?;
+                    Ok((name, filename))
+                },
+            )?;
+
+        let count = self
+            .connection
+            .execute("DELETE FROM stories WHERE `id` = ?1", [story_id])?;
+
+        if count > 0 {
+            // Deleting the story file, we don't care that much if it fails.
+            if let Ok(story_folder) = self.stories_folder() {
+                let file_path = story_folder.join(filename);
+                let _ = fs::remove_file(file_path);
+            }
+
+            Ok(name)
+        } else {
+            Err(anyhow!("No stories was deleted"))
+        }
+    }
+
+    pub fn list_all_stories(&self) -> Result<Vec<(u64, String)>> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id, name FROM stories")
+            .unwrap();
+        let stories = statement
+            .query_map([], |row| {
+                let id: u64 = row.get(0)?;
+                let name: String = row.get(1)?;
+                Ok((id, name))
+            })?
+            .collect::<Result<Vec<_>, _>>();
+        let stories = stories?;
+        Ok(stories)
+    }
+
     fn stories_folder(&self) -> Result<PathBuf> {
         let folder = self.storage_folder.as_ref().join("stories");
         if !folder.exists() {
@@ -120,5 +179,6 @@ where
 fn create_tables(connection: &Connection) -> Result<()> {
     connection.execute(CREATE_COUNTER, [])?;
     connection.execute(CREATE_STORIES, [])?;
+    connection.execute(CREATE_STORY_STATE, [])?;
     Ok(())
 }
