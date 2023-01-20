@@ -40,7 +40,7 @@ pub async fn increment_interaction(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) {
-    let database = handler.database.lock().await;
+    let database = handler.storage.lock().await;
     database.increment_count().unwrap();
     let count = database.get_count().unwrap();
     let message = format!("Count is now {count}");
@@ -78,7 +78,7 @@ pub async fn upload_story_interaction(
         if let Ok(content) = fetch_attachment(attachment).await {
             let story_title = story_title(&content);
             if story_title.is_some() {
-                let database = handler.database.lock().await;
+                let database = handler.storage.lock().await;
                 let answer = match database.save_story(&content) {
                     Ok(_) => format!(
                         "Successfully uploaded `{}`, adding story `{}`",
@@ -118,7 +118,7 @@ pub async fn delete_story_interaction(
     command: &ApplicationCommandInteraction,
 ) {
     let text = "Please select the story you want to delete:";
-    let database = handler.database.lock().await;
+    let database = handler.storage.lock().await;
     let all_stories = database.list_all_stories();
 
     let stories = if let Ok(stories) = all_stories {
@@ -172,12 +172,12 @@ pub async fn actual_deletion(
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) {
-    let story_id: Result<u64, _> = message_component
+    let story_id: Result<i64, _> = message_component
         .data
         .values
         .first()
         .ok_or_else(|| anyhow!("No id selected"))
-        .and_then(|id| id.parse::<u64>().map_err(Into::into));
+        .and_then(|id| id.parse::<i64>().map_err(Into::into));
     let story_id = if let Ok(story_id) = story_id {
         story_id
     } else {
@@ -185,7 +185,7 @@ pub async fn actual_deletion(
         return;
     };
 
-    let database = handler.database.lock().await;
+    let database = handler.storage.lock().await;
     let delete_result = database.delete_story(story_id);
     drop(database);
 
@@ -201,7 +201,7 @@ pub async fn actual_deletion(
     }
 }
 
-async fn update_message_text<T: ToString>(
+pub async fn update_message_text<T: ToString>(
     text: T,
     ctx: &Context,
     message_component: &MessageComponentInteraction,

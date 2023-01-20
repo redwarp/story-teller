@@ -83,6 +83,20 @@ impl SlashCommand for DeleteStoryCommand {
     }
 }
 
+pub struct PlayCommand;
+
+impl SlashCommand for PlayCommand {
+    const NAME: &'static str = "play";
+
+    fn create_application_command(
+        command: &mut CreateApplicationCommand,
+    ) -> &mut CreateApplicationCommand {
+        command
+            .name(Self::NAME)
+            .description("Play an interactive story")
+    }
+}
+
 pub trait SlashCommandCreator {
     fn create_slash_command<S: SlashCommand>(&mut self) -> &mut Self;
 }

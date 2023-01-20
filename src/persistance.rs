@@ -8,6 +8,7 @@ use rusqlite::Connection;
 use twee_v3::Story;
 use uuid::Uuid;
 
+use crate::play::GameState;
 use crate::utils::verify_story;
 
 const CREATE_COUNTER: &str = "
@@ -25,8 +26,7 @@ create table if not exists stories(
 
 const CREATE_STORY_STATE: &str = "
 CREATE TABLE IF NOT EXISTS story_state(
-    `id` INTEGER PRIMARY KEY AUTOINCREMENT,
-    `player_id` TEXT NOT NULL UNIQUE,
+    `player_id` TEXT NOT NULL PRIMARY KEY,
     `story_id` INT NOT NULL,
     `current_step` TEXT NOT NULL,
     CONSTRAINT fk_story
@@ -121,18 +121,16 @@ where
     }
 
     /// Delete story with the id, and returns the name of the deleted story.
-    pub fn delete_story(&self, story_id: u64) -> Result<String> {
-        let (name, filename) = self
-            .connection
-            .query_row_and_then::<(String, String), anyhow::Error, _, _>(
-                "SELECT name, filename FROM stories WHERE `id`=?",
-                [story_id],
-                |row| {
-                    let name: String = row.get(0)?;
-                    let filename: String = row.get(1)?;
-                    Ok((name, filename))
-                },
-            )?;
+    pub fn delete_story(&self, story_id: i64) -> Result<String> {
+        let (name, filename) = self.connection.query_row(
+            "SELECT name, filename FROM stories WHERE `id`=?",
+            [story_id],
+            |row| {
+                let name: String = row.get(0)?;
+                let filename: String = row.get(1)?;
+                Ok((name, filename))
+            },
+        )?;
 
         let count = self
             .connection
@@ -151,20 +149,63 @@ where
         }
     }
 
-    pub fn list_all_stories(&self) -> Result<Vec<(u64, String)>> {
+    pub fn list_all_stories(&self) -> Result<Vec<(i64, String)>> {
         let mut statement = self
             .connection
             .prepare("SELECT id, name FROM stories")
             .unwrap();
         let stories = statement
             .query_map([], |row| {
-                let id: u64 = row.get(0)?;
+                let id: i64 = row.get(0)?;
                 let name: String = row.get(1)?;
                 Ok((id, name))
             })?
             .collect::<Result<Vec<_>, _>>();
         let stories = stories?;
         Ok(stories)
+    }
+
+    pub fn update_game_state(&self, game_state: GameState) -> Result<()> {
+        const QUERY: &str =
+            "INSERT OR REPLACE into story_state (player_id, story_id, current_step) VALUES
+        (?1, ?2, ?3)";
+        self.connection.execute(
+            QUERY,
+            (
+                game_state.player_id,
+                game_state.story_id,
+                game_state.current_chapter,
+            ),
+        )?;
+        Ok(())
+    }
+
+    pub fn retrieve_game_state(&self, player_id: &str) -> Result<GameState> {
+        const QUERY: &str = "SELECT story_id, current_step FROM story_state WHERE player_id = ?";
+
+        let (story_id, current_step) = self.connection.query_row(QUERY, [player_id], |row| {
+            let story_id: i64 = row.get(0)?;
+            let current_step: String = row.get(1)?;
+            Ok((story_id, current_step))
+        })?;
+
+        Ok(GameState::new(
+            player_id.to_string(),
+            story_id,
+            current_step,
+        ))
+    }
+
+    pub fn load_story_content(&self, story_id: i64) -> Result<String> {
+        const QUERY: &str = "SELECT filename FROM stories WHERE id = ?";
+        let filename: String = self
+            .connection
+            .query_row(QUERY, [story_id], |row| row.get(0))?;
+
+        let path = self.stories_folder()?.join(filename);
+        let content = fs::read_to_string(path)?;
+
+        Ok(content)
     }
 
     fn stories_folder(&self) -> Result<PathBuf> {

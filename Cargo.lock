@@ -1526,9 +1526,9 @@ dependencies = [
 
 [[package]]
 name = "twee-v3"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e271c82eee64df37378db0dbc965265bd9512d92b953d3b6988c2d37e54f074"
+checksum = "c44b4c7e4ccccdec8ef2eb286b0b7e712f5379516afcb8641f35ab4e3b19200e"
 dependencies = [
  "nom",
  "serde_json",

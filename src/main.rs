@@ -5,6 +5,7 @@ use command::{IncrementCommand, UploadStoryCommand};
 use config::Config;
 use interaction::{actual_deletion, delete_story_interaction, DELETE_STORY_MENU};
 use persistance::Storage;
+use play::{actual_start, play_story_interaction, START_STORY_MENU};
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
 use serenity::model::prelude::command::Command;
@@ -13,7 +14,7 @@ use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
 use crate::command::{
-    DeleteStoryCommand, PingCommand, PongCommand, SlashCommand, SlashCommandCreator,
+    DeleteStoryCommand, PingCommand, PlayCommand, PongCommand, SlashCommand, SlashCommandCreator,
 };
 use crate::interaction::{
     increment_interaction, react_interaction, text_interaction, upload_story_interaction,
@@ -23,12 +24,13 @@ mod command;
 mod config;
 mod interaction;
 mod persistance;
+mod play;
 mod utils;
 
 const CONFIG_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml");
 
 pub struct Handler {
-    database: Mutex<Storage<String>>,
+    storage: Mutex<Storage<String>>,
 }
 
 #[async_trait]
@@ -52,6 +54,9 @@ impl EventHandler for Handler {
                 DeleteStoryCommand::NAME => {
                     delete_story_interaction(self, &ctx, &command).await;
                 }
+                PlayCommand::NAME => {
+                    play_story_interaction(self, &ctx, &command).await;
+                }
                 rest => {
                     println!("Command {rest} not implemented :(");
                     text_interaction(
@@ -63,8 +68,10 @@ impl EventHandler for Handler {
                 }
             }
         } else if let Interaction::MessageComponent(message_component) = interaction {
-            if message_component.data.custom_id.as_str() == DELETE_STORY_MENU {
-                actual_deletion(self, &ctx, &message_component).await;
+            match message_component.data.custom_id.as_str() {
+                DELETE_STORY_MENU => actual_deletion(self, &ctx, &message_component).await,
+                START_STORY_MENU => actual_start(self, &ctx, &message_component).await,
+                _ => {}
             }
         } else {
             println!("Something happened");
@@ -81,6 +88,7 @@ impl EventHandler for Handler {
                 .create_slash_command::<IncrementCommand>()
                 .create_slash_command::<UploadStoryCommand>()
                 .create_slash_command::<DeleteStoryCommand>()
+                .create_slash_command::<PlayCommand>()
         })
         .await
         .unwrap();
@@ -104,7 +112,7 @@ async fn main() -> Result<()> {
     let intents = GatewayIntents::non_privileged();
     let mut client = Client::builder(token, intents)
         .event_handler(Handler {
-            database: Mutex::new(database),
+            storage: Mutex::new(database),
         })
         .framework(framework)
         .await
