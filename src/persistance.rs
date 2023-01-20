@@ -9,6 +9,7 @@ pub struct Database {
 
 impl Database {
     pub fn new<P: AsRef<Path>>(database_path: P) -> Result<Self> {
+        // let connection = Connection::open(":memory:")?;
         let connection = Connection::open(database_path)?;
         let mut check = connection
             .prepare("SELECT name FROM sqlite_schema where type='table' and name='counter'")?;

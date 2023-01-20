@@ -1,6 +1,7 @@
 use std::env;
 
 use anyhow::Result;
+use config::Config;
 use persistance::Database;
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
@@ -9,7 +10,10 @@ use serenity::model::prelude::interaction::{Interaction, InteractionResponseType
 use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
+mod config;
 mod persistance;
+
+const CONFIG_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml");
 
 struct Handler {
     database: Mutex<Database>,
@@ -79,7 +83,7 @@ impl EventHandler for Handler {
                         .create_option(|option| {
                             option.kind(
                                 serenity::model::prelude::command::CommandOptionType::Attachment,
-                            ).name("file").required(true).description("The file to upload")
+                            ).name("file").required(true).description("The story to upload")
                         })
                 })
         })
@@ -94,13 +98,15 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let sql_path = env::var("DATABASE_URL").expect("database");
+    let config = Config::new(CONFIG_FILE);
+    let sql_path = config.get_string("DATABASE_URL").expect("database");
     let database = Database::new(sql_path)?;
 
     let framework = StandardFramework::new();
 
     // Login with a bot token from the environment
-    let token = env::var("DISCORD_TOKEN").expect("token");
+    let token = config.get_string("DISCORD_TOKEN").expect("token");
+    println!("Discord token: [{token}]");
     let intents = GatewayIntents::non_privileged();
     let mut client = Client::builder(token, intents)
         .event_handler(Handler {
