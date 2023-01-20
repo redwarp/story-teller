@@ -3,7 +3,7 @@ use std::env;
 use anyhow::Result;
 use command::{IncrementCommand, UploadStoryCommand};
 use config::Config;
-use persistance::Database;
+use persistance::Storage;
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
 use serenity::model::prelude::command::Command;
@@ -12,24 +12,26 @@ use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
 use crate::command::{PingCommand, PongCommand, SlashCommand, SlashCommandCreator};
-use crate::interaction::{increment_interaction, react_interaction, text_interaction};
+use crate::interaction::{
+    increment_interaction, react_interaction, text_interaction, upload_story_interaction,
+};
 
 mod command;
 mod config;
 mod interaction;
 mod persistance;
+mod utils;
 
 const CONFIG_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml");
 
 pub struct Handler {
-    database: Mutex<Database>,
+    database: Mutex<Storage<String>>,
 }
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
-            println!("Received command interaction: {:#?}", command.data.kind);
             match command.data.name.as_str() {
                 PingCommand::NAME => {
                     text_interaction("Pong!", &ctx, &command).await;
@@ -41,9 +43,7 @@ impl EventHandler for Handler {
                     increment_interaction(self, &ctx, &command).await;
                     react_interaction('⏰', &ctx, &command).await;
                 }
-                UploadStoryCommand::NAME => {
-                    text_interaction("Trying to upload, I see!", &ctx, &command).await;
-                }
+                UploadStoryCommand::NAME => upload_story_interaction(self, &ctx, &command).await,
                 _ => {
                     println!("Not implemented :(");
                 }
@@ -73,8 +73,8 @@ impl EventHandler for Handler {
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = Config::new(CONFIG_FILE);
-    let sql_path = config.get_string("DATABASE_URL").expect("database");
-    let database = Database::new(sql_path)?;
+    let save_folder = config.get_string("SAVE_FOLDER").expect("database");
+    let database = Storage::new(save_folder)?;
 
     let framework = StandardFramework::new();
 

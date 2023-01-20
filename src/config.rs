@@ -9,7 +9,9 @@ pub struct Config {
 impl Config {
     pub fn new<P: AsRef<Path>>(path: P) -> Self {
         let content = read_to_string(path).unwrap_or_default();
-        let content = content.parse::<Value>().unwrap_or(Value::Table(Map::new()));
+        let content = content
+            .parse::<Value>()
+            .unwrap_or_else(|_| Value::Table(Map::new()));
 
         Self { content }
     }
