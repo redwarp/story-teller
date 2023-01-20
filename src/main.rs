@@ -1,21 +1,27 @@
 use std::env;
 
 use anyhow::Result;
+use command::{IncrementCommand, UploadStoryCommand};
 use config::Config;
 use persistance::Database;
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
 use serenity::model::prelude::command::Command;
-use serenity::model::prelude::interaction::{Interaction, InteractionResponseType};
+use serenity::model::prelude::interaction::Interaction;
 use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
+use crate::command::{PingCommand, PongCommand, SlashCommand, SlashCommandCreator};
+use crate::interaction::{increment_interaction, react_interaction, text_interaction};
+
+mod command;
 mod config;
+mod interaction;
 mod persistance;
 
 const CONFIG_FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/config.toml");
 
-struct Handler {
+pub struct Handler {
     database: Mutex<Database>,
 }
 
@@ -24,39 +30,24 @@ impl EventHandler for Handler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
             println!("Received command interaction: {:#?}", command.data.kind);
-            let content = match command.data.name.as_str() {
-                "ping" => "Pong!".to_string(),
-                "pong" => "Ping!".to_string(),
-                "increment" => {
-                    let database = self.database.lock().await;
-                    database.increment_count().unwrap();
-                    let count = database.get_count().unwrap();
-                    format!("Count is now {count}")
+            match command.data.name.as_str() {
+                PingCommand::NAME => {
+                    text_interaction("Pong!", &ctx, &command).await;
                 }
-                "uploadstory" => "Trying to upload I see!".to_string(),
-                _ => "not implemented :(".to_string(),
-            };
-
-            if let Err(why) = command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| {
-                            message
-                                .embed(|embed| embed.title("Action").description(content))
-                                .ephemeral(false)
-                        })
-                })
-                .await
-            {
-                println!("Cannot respond to slash command: {}", why);
+                PongCommand::NAME => {
+                    text_interaction("Ping!", &ctx, &command).await;
+                }
+                IncrementCommand::NAME => {
+                    increment_interaction(self, &ctx, &command).await;
+                    react_interaction('⏰', &ctx, &command).await;
+                }
+                UploadStoryCommand::NAME => {
+                    text_interaction("Trying to upload, I see!", &ctx, &command).await;
+                }
+                _ => {
+                    println!("Not implemented :(");
+                }
             }
-
-            if let Ok(message) = command.get_interaction_response(&ctx.http).await {
-                if let Err(why) = message.react(&ctx.http, '👍').await {
-                    println!("Cannot react to slash command: {}", why);
-                };
-            };
         }
     }
 
@@ -65,27 +56,10 @@ impl EventHandler for Handler {
 
         Command::set_global_application_commands(&ctx.http, |commands| {
             commands
-                .create_application_command(|command| {
-                    command.name("ping").description("Pings the bot")
-                })
-                .create_application_command(|command| {
-                    command.name("pong").description("Pongs the bot")
-                })
-                .create_application_command(|command| {
-                    command
-                        .name("increment")
-                        .description("Increments a counter")
-                })
-                .create_application_command(|command| {
-                    command
-                        .name("uploadstory")
-                        .description("Upload a story")
-                        .create_option(|option| {
-                            option.kind(
-                                serenity::model::prelude::command::CommandOptionType::Attachment,
-                            ).name("file").required(true).description("The story to upload")
-                        })
-                })
+                .create_slash_command::<PingCommand>()
+                .create_slash_command::<PongCommand>()
+                .create_slash_command::<IncrementCommand>()
+                .create_slash_command::<UploadStoryCommand>()
         })
         .await
         .unwrap();
@@ -106,7 +80,6 @@ async fn main() -> Result<()> {
 
     // Login with a bot token from the environment
     let token = config.get_string("DISCORD_TOKEN").expect("token");
-    println!("Discord token: [{token}]");
     let intents = GatewayIntents::non_privileged();
     let mut client = Client::builder(token, intents)
         .event_handler(Handler {
