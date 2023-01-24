@@ -196,6 +196,14 @@ where
         ))
     }
 
+    pub fn clear_game_state(&self, player_id: &str) -> Result<()> {
+        const QUERY: &str = "DELETE FROM story_state WHERE player_id = ?";
+
+        self.connection.execute(QUERY, [player_id])?;
+
+        Ok(())
+    }
+
     pub fn load_story_content(&self, story_id: i64) -> Result<String> {
         const QUERY: &str = "SELECT filename FROM stories WHERE id = ?";
         let filename: String = self

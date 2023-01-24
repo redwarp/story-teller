@@ -22,18 +22,6 @@ impl SlashCommand for PingCommand {
     }
 }
 
-pub struct PongCommand;
-
-impl SlashCommand for PongCommand {
-    const NAME: &'static str = "pong";
-
-    fn create_application_command(
-        command: &mut CreateApplicationCommand,
-    ) -> &mut CreateApplicationCommand {
-        command.name(Self::NAME).description("Pongs the bot")
-    }
-}
-
 pub struct IncrementCommand;
 
 impl SlashCommand for IncrementCommand {

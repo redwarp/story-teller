@@ -1,6 +1,6 @@
 use std::{env, fs::read_to_string, path::Path};
 
-use toml::{value::Map, Value};
+use toml::{map::Map, Value};
 
 pub struct Config {
     content: Value,

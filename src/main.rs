@@ -5,7 +5,9 @@ use command::{IncrementCommand, UploadStoryCommand};
 use config::Config;
 use interaction::{actual_deletion, delete_story_interaction, DELETE_STORY_MENU};
 use persistance::Storage;
-use play::{actual_start, play_story_interaction, START_STORY_MENU};
+use play::{
+    actual_passage, actual_start, play_story_interaction, PICK_NEXT_PASSAGE, START_STORY_MENU,
+};
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
 use serenity::model::prelude::command::Command;
@@ -14,7 +16,7 @@ use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
 use crate::command::{
-    DeleteStoryCommand, PingCommand, PlayCommand, PongCommand, SlashCommand, SlashCommandCreator,
+    DeleteStoryCommand, PingCommand, PlayCommand, SlashCommand, SlashCommandCreator,
 };
 use crate::interaction::{
     increment_interaction, react_interaction, text_interaction, upload_story_interaction,
@@ -40,9 +42,6 @@ impl EventHandler for Handler {
             match command.data.name.as_str() {
                 PingCommand::NAME => {
                     text_interaction("Pong!", &ctx, &command).await;
-                }
-                PongCommand::NAME => {
-                    text_interaction("Ping!", &ctx, &command).await;
                 }
                 IncrementCommand::NAME => {
                     increment_interaction(self, &ctx, &command).await;
@@ -71,7 +70,10 @@ impl EventHandler for Handler {
             match message_component.data.custom_id.as_str() {
                 DELETE_STORY_MENU => actual_deletion(self, &ctx, &message_component).await,
                 START_STORY_MENU => actual_start(self, &ctx, &message_component).await,
-                _ => {}
+                PICK_NEXT_PASSAGE => actual_passage(self, &ctx, &message_component).await,
+                other => {
+                    println!("Message component {other}");
+                }
             }
         } else {
             println!("Something happened");
@@ -84,7 +86,6 @@ impl EventHandler for Handler {
         Command::set_global_application_commands(&ctx.http, |commands| {
             commands
                 .create_slash_command::<PingCommand>()
-                .create_slash_command::<PongCommand>()
                 .create_slash_command::<IncrementCommand>()
                 .create_slash_command::<UploadStoryCommand>()
                 .create_slash_command::<DeleteStoryCommand>()
