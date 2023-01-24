@@ -6,7 +6,8 @@ use config::Config;
 use interaction::{actual_deletion, delete_story_interaction, DELETE_STORY_MENU};
 use persistance::Storage;
 use play::{
-    actual_passage, actual_start, play_story_interaction, PICK_NEXT_PASSAGE, START_STORY_MENU,
+    actual_start, next_chapter, play_story_interaction, stop_story_interaction, PICK_NEXT_PASSAGE,
+    START_STORY_MENU,
 };
 use serenity::async_trait;
 use serenity::framework::standard::StandardFramework;
@@ -16,7 +17,7 @@ use serenity::model::prelude::{Reaction, Ready};
 use serenity::prelude::*;
 
 use crate::command::{
-    DeleteStoryCommand, PingCommand, PlayCommand, SlashCommand, SlashCommandCreator,
+    DeleteStoryCommand, PingCommand, PlayCommand, SlashCommand, SlashCommandCreator, StopCommand,
 };
 use crate::interaction::{
     increment_interaction, react_interaction, text_interaction, upload_story_interaction,
@@ -56,6 +57,9 @@ impl EventHandler for Handler {
                 PlayCommand::NAME => {
                     play_story_interaction(self, &ctx, &command).await;
                 }
+                StopCommand::NAME => {
+                    stop_story_interaction(self, &ctx, &command).await;
+                }
                 rest => {
                     println!("Command {rest} not implemented :(");
                     text_interaction(
@@ -70,7 +74,7 @@ impl EventHandler for Handler {
             match message_component.data.custom_id.as_str() {
                 DELETE_STORY_MENU => actual_deletion(self, &ctx, &message_component).await,
                 START_STORY_MENU => actual_start(self, &ctx, &message_component).await,
-                PICK_NEXT_PASSAGE => actual_passage(self, &ctx, &message_component).await,
+                PICK_NEXT_PASSAGE => next_chapter(self, &ctx, &message_component).await,
                 other => {
                     println!("Message component {other}");
                 }
@@ -90,6 +94,7 @@ impl EventHandler for Handler {
                 .create_slash_command::<UploadStoryCommand>()
                 .create_slash_command::<DeleteStoryCommand>()
                 .create_slash_command::<PlayCommand>()
+                .create_slash_command::<StopCommand>()
         })
         .await
         .unwrap();

@@ -85,6 +85,20 @@ impl SlashCommand for PlayCommand {
     }
 }
 
+pub struct StopCommand;
+
+impl SlashCommand for StopCommand {
+    const NAME: &'static str = "stop";
+
+    fn create_application_command(
+        command: &mut CreateApplicationCommand,
+    ) -> &mut CreateApplicationCommand {
+        command
+            .name(Self::NAME)
+            .description("Stop your current interactive story")
+    }
+}
+
 pub trait SlashCommandCreator {
     fn create_slash_command<S: SlashCommand>(&mut self) -> &mut Self;
 }

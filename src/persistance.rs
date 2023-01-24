@@ -165,16 +165,16 @@ where
         Ok(stories)
     }
 
-    pub fn update_game_state(&self, game_state: GameState) -> Result<()> {
+    pub fn update_game_state(&self, game_state: &GameState) -> Result<()> {
         const QUERY: &str =
             "INSERT OR REPLACE into story_state (player_id, story_id, current_step) VALUES
         (?1, ?2, ?3)";
         self.connection.execute(
             QUERY,
             (
-                game_state.player_id,
-                game_state.story_id,
-                game_state.current_chapter,
+                &game_state.player_id,
+                &game_state.story_id,
+                &game_state.current_chapter,
             ),
         )?;
         Ok(())

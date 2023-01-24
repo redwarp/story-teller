@@ -211,7 +211,7 @@ pub async fn update_message_text<T: ToString>(
             r.kind(InteractionResponseType::UpdateMessage)
                 .interaction_response_data(|d| {
                     d.embed(|embed| embed.title("Action").description(text))
-                        .components(|c| c.set_action_rows(vec![]))
+                        .components(|c| c)
                 })
         })
         .await

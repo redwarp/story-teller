@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::anyhow;
 use anyhow::Result;
 use serenity::builder::CreateComponents;
@@ -33,6 +31,37 @@ impl GameState {
             current_chapter,
         }
     }
+}
+
+pub async fn stop_story_interaction(
+    handler: &Handler,
+    ctx: &Context,
+    command: &ApplicationCommandInteraction,
+) {
+    if let Err(_) = stop_story_interaction_inner(handler, ctx, command).await {
+        println!("Error!");
+        text_interaction("Error while playing the story", ctx, command).await;
+    }
+}
+
+async fn stop_story_interaction_inner(
+    handler: &Handler,
+    ctx: &Context,
+    command: &ApplicationCommandInteraction,
+) -> Result<()> {
+    let storage = handler.storage.lock().await;
+    let player_id = command.user.id.to_string();
+    storage.clear_game_state(&player_id)?;
+    drop(storage);
+
+    text_interaction(
+        "Current story stopped, start again with the `/play` command",
+        ctx,
+        command,
+    )
+    .await;
+
+    Ok(())
 }
 
 pub async fn play_story_interaction(
@@ -207,13 +236,10 @@ async fn actual_start_inner(
         .start()
         .ok_or_else(|| anyhow!("Story without start"))?;
     let player_id = message_component.user.id.to_string();
+    let game_state = GameState::new(player_id, story_id, start.title().to_string());
     {
         let storage = handler.storage.lock().await;
-        storage.update_game_state(GameState::new(
-            player_id,
-            story_id,
-            start.title().to_string(),
-        ))?;
+        storage.update_game_state(&game_state)?;
     }
 
     update_message_text(
@@ -226,35 +252,48 @@ async fn actual_start_inner(
     )
     .await;
 
-    tokio::time::sleep(Duration::from_millis(2000)).await;
+    let passage = story
+        .get_passage(&game_state.current_chapter)
+        .ok_or(anyhow!("Couldn't retrieve passage"))?;
 
-    let follow = message_component
-        .create_followup_message(&ctx.http, |follow_up| {
-            follow_up.embed(|embed| embed.title("Action").description("Let's gooo!"))
-        })
-        .await;
-    if let Err(why) = follow {
-        println!("Cannot send follow up: {}", why);
+    let mut passage_content = String::new();
+    for node in passage.nodes() {
+        match node {
+            twee_v3::ContentNode::Text(text) => passage_content.push_str(text),
+            twee_v3::ContentNode::Link { text, target: _ } => {
+                passage_content.push_str(&format!("`{text}`"))
+            }
+        };
     }
+
+    message_component
+        .create_followup_message(&ctx.http, |message| {
+            message
+                .embed(|embed| embed.title(passage.title()).description(passage_content))
+                .components(|components| add_story_components(components, passage))
+        })
+        .await?;
 
     Ok(())
 }
 
-pub async fn actual_passage(
+pub async fn next_chapter(
     handler: &Handler,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) {
-    if let Err(_) = actual_passage_inner(handler, ctx, message_component).await {
+    if let Err(_) = next_chapter_inner(handler, ctx, message_component).await {
         update_message_text("Couldn't start the story", ctx, message_component).await;
     }
 }
 
-async fn actual_passage_inner(
+async fn next_chapter_inner(
     handler: &Handler,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) -> Result<()> {
+    println!("Interaction id {}", message_component.id);
+
     let next_chapter = message_component
         .data
         .values
@@ -295,7 +334,7 @@ async fn actual_passage_inner(
                                 .title(current_passage.title())
                                 .description(current_passage_content)
                         })
-                        .components(|components| components.set_action_rows(vec![]))
+                        .components(|components| components)
                 })
         })
         .await?;
@@ -325,7 +364,7 @@ async fn actual_passage_inner(
     let database = handler.storage.lock().await;
 
     if passage.links().count() > 0 {
-        database.update_game_state(GameState {
+        database.update_game_state(&GameState {
             current_chapter: next_chapter.clone(),
             ..game_state
         })?;
