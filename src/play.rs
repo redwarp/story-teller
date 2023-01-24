@@ -38,7 +38,10 @@ pub async fn stop_story_interaction(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) {
-    if let Err(_) = stop_story_interaction_inner(handler, ctx, command).await {
+    if stop_story_interaction_inner(handler, ctx, command)
+        .await
+        .is_err()
+    {
         println!("Error!");
         text_interaction("Error while playing the story", ctx, command).await;
     }
@@ -69,7 +72,10 @@ pub async fn play_story_interaction(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) {
-    if let Err(_) = play_story_interaction_inner(handler, ctx, command).await {
+    if play_story_interaction_inner(handler, ctx, command)
+        .await
+        .is_err()
+    {
         println!("Error!");
         text_interaction("Error while playing the story", ctx, command).await;
     }
@@ -80,7 +86,6 @@ async fn play_story_interaction_inner(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<()> {
-    println!("Playing!");
     let database = handler.storage.lock().await;
     let player_id = command.user.id.to_string();
 
@@ -110,7 +115,7 @@ async fn continue_game(
 
     let passage = story
         .get_passage(&game_state.current_chapter)
-        .ok_or(anyhow!("Couldn't retrieve passage"))?;
+        .ok_or_else(|| anyhow!("Couldn't retrieve passage"))?;
 
     let mut passage_content = String::new();
     for node in passage.nodes() {
@@ -210,7 +215,10 @@ pub async fn actual_start(
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) {
-    if let Err(_) = actual_start_inner(handler, ctx, message_component).await {
+    if actual_start_inner(handler, ctx, message_component)
+        .await
+        .is_err()
+    {
         update_message_text("Couldn't start the story", ctx, message_component).await;
     }
 }
@@ -254,7 +262,7 @@ async fn actual_start_inner(
 
     let passage = story
         .get_passage(&game_state.current_chapter)
-        .ok_or(anyhow!("Couldn't retrieve passage"))?;
+        .ok_or_else(|| anyhow!("Couldn't retrieve passage"))?;
 
     let mut passage_content = String::new();
     for node in passage.nodes() {
@@ -282,7 +290,10 @@ pub async fn next_chapter(
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) {
-    if let Err(_) = next_chapter_inner(handler, ctx, message_component).await {
+    if next_chapter_inner(handler, ctx, message_component)
+        .await
+        .is_err()
+    {
         update_message_text("Couldn't start the story", ctx, message_component).await;
     }
 }
@@ -292,8 +303,6 @@ async fn next_chapter_inner(
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) -> Result<()> {
-    println!("Interaction id {}", message_component.id);
-
     let next_chapter = message_component
         .data
         .values
@@ -311,7 +320,7 @@ async fn next_chapter_inner(
 
     let current_passage = story
         .get_passage(&game_state.current_chapter)
-        .ok_or(anyhow!("Couldn't retrieve passage"))?;
+        .ok_or_else(|| anyhow!("Couldn't retrieve passage"))?;
 
     let mut current_passage_content = String::new();
     for node in current_passage.nodes() {
@@ -326,7 +335,7 @@ async fn next_chapter_inner(
     message_component
         .create_interaction_response(&ctx.http, |response| {
             response
-                .kind(InteractionResponseType::ChannelMessageWithSource)
+                .kind(InteractionResponseType::UpdateMessage)
                 .interaction_response_data(|message| {
                     message
                         .embed(|embed| {
@@ -340,8 +349,8 @@ async fn next_chapter_inner(
         .await?;
 
     let passage = story
-        .get_passage(&next_chapter)
-        .ok_or(anyhow!("Couldn't retrieve passage"))?;
+        .get_passage(next_chapter)
+        .ok_or_else(|| anyhow!("Couldn't retrieve passage"))?;
 
     let mut passage_content = String::new();
     for node in passage.nodes() {
