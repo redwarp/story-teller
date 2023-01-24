@@ -149,14 +149,16 @@ fn add_story_components<'a, 'b>(
     if passage.links().count() > 0 {
         components.create_action_row(|row| {
             row.create_select_menu(|menu| {
-                menu.custom_id(PICK_NEXT_PASSAGE).options(|mut options| {
-                    for node in passage.links() {
-                        options = options.create_option(|create_option| {
-                            create_option.label(node.text).value(node.target)
-                        });
-                    }
-                    options
-                })
+                menu.custom_id(PICK_NEXT_PASSAGE)
+                    .placeholder("Next chapter")
+                    .options(|mut options| {
+                        for node in passage.links() {
+                            options = options.create_option(|create_option| {
+                                create_option.label(node.text).value(node.target)
+                            });
+                        }
+                        options
+                    })
             })
         })
     } else {
@@ -318,32 +320,13 @@ async fn next_chapter_inner(
 
     let story = Story::try_from(story_content.as_str()).map_err(|_| anyhow!("Parsing error"))?;
 
-    let current_passage = story
-        .get_passage(&game_state.current_chapter)
-        .ok_or_else(|| anyhow!("Couldn't retrieve passage"))?;
-
-    let mut current_passage_content = String::new();
-    for node in current_passage.nodes() {
-        match node {
-            twee_v3::ContentNode::Text(text) => current_passage_content.push_str(text),
-            twee_v3::ContentNode::Link { text, target: _ } => {
-                current_passage_content.push_str(&format!("`{text}`"))
-            }
-        };
-    }
-
+    // Update the previous interaction to remove the menu.
     message_component
         .create_interaction_response(&ctx.http, |response| {
             response
-                .kind(InteractionResponseType::UpdateMessage)
-                .interaction_response_data(|message| {
-                    message
-                        .embed(|embed| {
-                            embed
-                                .title(current_passage.title())
-                                .description(current_passage_content)
-                        })
-                        .components(|components| components)
+                .kind(InteractionResponseType::DeferredUpdateMessage)
+                .interaction_response_data(|response_data| {
+                    response_data.components(|components| components)
                 })
         })
         .await?;
@@ -365,6 +348,7 @@ async fn next_chapter_inner(
     message_component
         .create_followup_message(&ctx.http, |message| {
             message
+                .allowed_mentions(|mentions| mentions.replied_user(true))
                 .embed(|embed| embed.title(passage.title()).description(passage_content))
                 .components(|components| add_story_components(components, passage))
         })
