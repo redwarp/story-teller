@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS story_state(
         ON DELETE CASCADE
 );";
 
+pub enum SaveStory {
+    New,
+    Update,
+}
+
 pub struct Storage<P: AsRef<Path>> {
     storage_folder: P,
     connection: Connection,
@@ -87,7 +92,7 @@ where
         Ok(())
     }
 
-    pub fn save_story(&self, guild_id: &str, story_content: &str) -> Result<()> {
+    pub fn save_story(&self, guild_id: &str, story_content: &str) -> Result<SaveStory> {
         if !verify_story(story_content) {
             return Err(anyhow!("Invalid story"));
         }
@@ -108,6 +113,8 @@ where
             }
         };
 
+        let did_overwrite = self.cleanup_previous(guild_id, name)?;
+
         fs::write(&file_path, story_content)?;
         if let Err(e) = self.connection.execute(
             "INSERT INTO stories (guild_id, name, filename) VALUES (?1, ?2, ?3)",
@@ -119,7 +126,25 @@ where
             return Err(e.into());
         }
 
-        Ok(())
+        Ok(match did_overwrite {
+            true => SaveStory::Update,
+            false => SaveStory::New,
+        })
+    }
+
+    fn cleanup_previous(&self, guild_id: &str, name: &str) -> Result<bool> {
+        const QUERY: &str = "SELECT id FROM stories WHERE guild_id = ?1 AND name = ?2";
+        match self
+            .connection
+            .query_row(QUERY, [guild_id, name], |row| row.get::<_, i64>(0))
+        {
+            Ok(story_id) => {
+                self.delete_story(story_id)?;
+                Ok(true)
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Delete story with the id, and returns the name of the deleted story.
@@ -171,7 +196,7 @@ where
         const QUERY: &str =
             "INSERT OR REPLACE into story_state (player_id, guild_id, story_id, current_step) VALUES
         (?1, ?2, ?3, ?4)";
-        self.connection.execute(
+        let affected = self.connection.execute(
             QUERY,
             (
                 &game_state.player_id,
@@ -180,6 +205,7 @@ where
                 &game_state.current_chapter,
             ),
         )?;
+        println!("Affected rows when updating game state: {}", affected);
         Ok(())
     }
 

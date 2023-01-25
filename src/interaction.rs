@@ -12,7 +12,7 @@ use serenity::{
     prelude::Context,
 };
 
-use crate::{utils::story_title, Handler};
+use crate::{persistance::SaveStory, utils::story_title, Handler};
 
 pub const DELETE_STORY_MENU: &str = "delete_story_menu";
 
@@ -88,11 +88,20 @@ pub async fn upload_story_interaction(
             if story_title.is_some() {
                 let database = handler.storage.lock().await;
                 let answer = match database.save_story(&guild_id, &content) {
-                    Ok(_) => format!(
-                        "Successfully uploaded `{}`, adding story `{}`",
-                        attachment.filename,
-                        story_title.unwrap()
-                    ),
+                    Ok(save_story) => match save_story {
+                        SaveStory::New => {
+                            format!(
+                                "Successfully uploaded `{}`, creating story `{}`",
+                                attachment.filename,
+                                story_title.unwrap()
+                            )
+                        }
+                        SaveStory::Update => format!(
+                            "Successfully uploaded `{}`, updating existing story `{}`",
+                            attachment.filename,
+                            story_title.unwrap()
+                        ),
+                    },
                     Err(_) => format!(
                         "Error while uploading `{}`, try again later.",
                         attachment.filename
