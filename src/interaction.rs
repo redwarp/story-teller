@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use anyhow::Result;
 use serenity::{
     model::prelude::{
         command::CommandOptionType,
@@ -25,8 +26,10 @@ pub async fn text_interaction<T: ToString>(
         .create_interaction_response(&ctx.http, |response| {
             response
                 .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| {
-                    message.embed(|embed| embed.title("Action").description(text))
+                .interaction_response_data(|response| {
+                    response
+                        .embed(|embed| embed.title("Action").description(text))
+                        .ephemeral(true)
                 })
         })
         .await
@@ -159,6 +162,7 @@ pub async fn delete_story_interaction(
                                 })
                             })
                         })
+                        .ephemeral(true)
                 })
         })
         .await
@@ -171,42 +175,34 @@ pub async fn actual_deletion(
     handler: &Handler,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
-) {
-    let story_id: Result<i64, _> = message_component
+) -> Result<()> {
+    let story_id: i64 = message_component
         .data
         .values
         .first()
         .ok_or_else(|| anyhow!("No id selected"))
-        .and_then(|id| id.parse::<i64>().map_err(Into::into));
-    let story_id = if let Ok(story_id) = story_id {
-        story_id
-    } else {
-        update_message_text("Wrong story selected", ctx, message_component).await;
-        return;
-    };
+        .and_then(|id| id.parse::<i64>().map_err(Into::into))?;
 
     let database = handler.storage.lock().await;
-    let delete_result = database.delete_story(story_id);
+    let story_name = database.delete_story(story_id)?;
     drop(database);
 
-    if let Ok(story_name) = delete_result {
-        update_message_text(
-            format!("Story `{story_name}` successfully deleted"),
-            ctx,
-            message_component,
-        )
-        .await;
-    } else {
-        update_message_text("Couldn't delete the story", ctx, message_component).await;
-    }
+    update_message_text(
+        format!("Story `{story_name}` successfully deleted"),
+        ctx,
+        message_component,
+    )
+    .await?;
+
+    Ok(())
 }
 
 pub async fn update_message_text<T: ToString>(
     text: T,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
-) {
-    if let Err(why) = message_component
+) -> Result<()> {
+    message_component
         .create_interaction_response(&ctx.http, |r| {
             r.kind(InteractionResponseType::UpdateMessage)
                 .interaction_response_data(|d| {
@@ -214,10 +210,8 @@ pub async fn update_message_text<T: ToString>(
                         .components(|c| c)
                 })
         })
-        .await
-    {
-        println!("Cannot respond to slash command: {}", why);
-    }
+        .await?;
+    Ok(())
 }
 
 async fn fetch_attachment(attachment: &Attachment) -> Result<String, reqwest::Error> {

@@ -217,19 +217,6 @@ pub async fn actual_start(
     handler: &Handler,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
-) {
-    if actual_start_inner(handler, ctx, message_component)
-        .await
-        .is_err()
-    {
-        update_message_text("Couldn't start the story", ctx, message_component).await;
-    }
-}
-
-async fn actual_start_inner(
-    handler: &Handler,
-    ctx: &Context,
-    message_component: &MessageComponentInteraction,
 ) -> Result<()> {
     let story_id = message_component
         .data
@@ -261,7 +248,7 @@ async fn actual_start_inner(
         ctx,
         message_component,
     )
-    .await;
+    .await?;
 
     let passage = story
         .get_passage(&game_state.current_chapter)
@@ -293,19 +280,6 @@ pub async fn next_chapter(
     handler: &Handler,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
-) {
-    if next_chapter_inner(handler, ctx, message_component)
-        .await
-        .is_err()
-    {
-        update_message_text("Couldn't start the story", ctx, message_component).await;
-    }
-}
-
-async fn next_chapter_inner(
-    handler: &Handler,
-    ctx: &Context,
-    message_component: &MessageComponentInteraction,
 ) -> Result<()> {
     let next_chapter = message_component
         .data
@@ -322,23 +296,11 @@ async fn next_chapter_inner(
 
     let story = Story::try_from(story_content.as_str()).map_err(|_| anyhow!("Parsing error"))?;
 
+    // Update the previous interaction to remove the menu.
     message_component.defer(&ctx.http).await?;
     message_component
         .edit_original_interaction_response(&ctx.http, |response| response.components(|c| c))
         .await?;
-
-    // // Update the previous interaction to remove the menu.
-    // message_component
-    //     .create_interaction_response(&ctx.http, |response| {
-    //         response
-    //             .kind(InteractionResponseType::DeferredUpdateMessage)
-    //             .interaction_response_data(|response_data| {
-    //                 response_data
-    //                     .components(|components| components)
-    //                     .ephemeral(true)
-    //             })
-    //     })
-    //     .await?;
 
     let passage = story
         .get_passage(next_chapter)
