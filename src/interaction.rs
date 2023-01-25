@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use reqwest::Client;
 use serenity::{
     model::prelude::{
         command::CommandOptionType,
@@ -238,7 +239,13 @@ pub async fn update_message_text<Ti: ToString, Te: ToString>(
 
 async fn fetch_attachment(attachment: &Attachment) -> Result<String, reqwest::Error> {
     println!("Fetching attachment {}", attachment.url);
-    match reqwest::get(&attachment.url).await {
+    // That is not ideal, but somehow there seems to be some issues with certificates and fly.io.
+    // Fast fix.
+    let client = Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()?;
+
+    match client.get(&attachment.url).send().await {
         Ok(response) => response.text().await,
         Err(e) => {
             println!("Error while fetching attachment: {}", e);
