@@ -67,6 +67,12 @@ pub async fn upload_story_interaction(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) {
+    let guild_id = if let Some(guild_id) = command.guild_id {
+        guild_id.to_string()
+    } else {
+        return;
+    };
+
     if let Some(attachment) = command
         .data
         .options
@@ -81,7 +87,7 @@ pub async fn upload_story_interaction(
             let story_title = story_title(&content);
             if story_title.is_some() {
                 let database = handler.storage.lock().await;
-                let answer = match database.save_story(&content) {
+                let answer = match database.save_story(&guild_id, &content) {
                     Ok(_) => format!(
                         "Successfully uploaded `{}`, adding story `{}`",
                         attachment.filename,
@@ -119,9 +125,15 @@ pub async fn delete_story_interaction(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) {
+    let guild_id = if let Some(guild_id) = command.guild_id {
+        guild_id.to_string()
+    } else {
+        return;
+    };
+
     let text = "Please select the story you want to delete:";
     let database = handler.storage.lock().await;
-    let all_stories = database.list_all_stories();
+    let all_stories = database.list_guild_stories(&guild_id);
 
     let stories = if let Ok(stories) = all_stories {
         stories

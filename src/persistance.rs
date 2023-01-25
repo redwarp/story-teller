@@ -18,16 +18,19 @@ CREATE TABLE IF NOT EXISTS counter(
 
 const CREATE_STORIES: &str = "
 create table if not exists stories(
-    id integer primary key autoincrement,
+    id integer PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
     name text not null,
     filename text not null
 );";
 
 const CREATE_STORY_STATE: &str = "
 CREATE TABLE IF NOT EXISTS story_state(
-    `player_id` TEXT NOT NULL PRIMARY KEY,
+    `player_id` TEXT NOT NULL,
+    `guild_id` TEXT NOT NULL,
     `story_id` INT NOT NULL,
     `current_step` TEXT NOT NULL,
+    PRIMARY KEY(`player_id`, `guild_id`),
     CONSTRAINT fk_story
         FOREIGN KEY (`story_id`)
         REFERENCES `stories`(`id`)
@@ -84,7 +87,7 @@ where
         Ok(())
     }
 
-    pub fn save_story(&self, story_content: &str) -> Result<()> {
+    pub fn save_story(&self, guild_id: &str, story_content: &str) -> Result<()> {
         if !verify_story(story_content) {
             return Err(anyhow!("Invalid story"));
         }
@@ -107,8 +110,8 @@ where
 
         fs::write(&file_path, story_content)?;
         if let Err(e) = self.connection.execute(
-            "INSERT INTO stories (name, filename) VALUES (?1, ?2)",
-            (name, filename.as_str()),
+            "INSERT INTO stories (guild_id, name, filename) VALUES (?1, ?2, ?3)",
+            (guild_id, name, filename.as_str()),
         ) {
             println!("Couldn't save story to database, deleting file");
             fs::remove_file(file_path)?;
@@ -148,13 +151,13 @@ where
         }
     }
 
-    pub fn list_all_stories(&self) -> Result<Vec<(i64, String)>> {
+    pub fn list_guild_stories(&self, guild_id: &str) -> Result<Vec<(i64, String)>> {
         let mut statement = self
             .connection
-            .prepare("SELECT id, name FROM stories")
+            .prepare("SELECT id, name FROM stories WHERE guild_id = ?1")
             .unwrap();
         let stories = statement
-            .query_map([], |row| {
+            .query_map([guild_id], |row| {
                 let id: i64 = row.get(0)?;
                 let name: String = row.get(1)?;
                 Ok((id, name))
@@ -166,12 +169,13 @@ where
 
     pub fn update_game_state(&self, game_state: &GameState) -> Result<()> {
         const QUERY: &str =
-            "INSERT OR REPLACE into story_state (player_id, story_id, current_step) VALUES
-        (?1, ?2, ?3)";
+            "INSERT OR REPLACE into story_state (player_id, guild_id, story_id, current_step) VALUES
+        (?1, ?2, ?3, ?4)";
         self.connection.execute(
             QUERY,
             (
                 &game_state.player_id,
+                &game_state.guild_id,
                 &game_state.story_id,
                 &game_state.current_chapter,
             ),
@@ -179,26 +183,30 @@ where
         Ok(())
     }
 
-    pub fn retrieve_game_state(&self, player_id: &str) -> Result<GameState> {
-        const QUERY: &str = "SELECT story_id, current_step FROM story_state WHERE player_id = ?";
+    pub fn retrieve_game_state(&self, player_id: &str, guild_id: &str) -> Result<GameState> {
+        const QUERY: &str =
+            "SELECT story_id, current_step FROM story_state WHERE player_id = ?1 AND guild_id = ?2";
 
-        let (story_id, current_step) = self.connection.query_row(QUERY, [player_id], |row| {
-            let story_id: i64 = row.get(0)?;
-            let current_step: String = row.get(1)?;
-            Ok((story_id, current_step))
-        })?;
+        let (story_id, current_step) =
+            self.connection
+                .query_row(QUERY, [player_id, guild_id], |row| {
+                    let story_id: i64 = row.get(0)?;
+                    let current_step: String = row.get(1)?;
+                    Ok((story_id, current_step))
+                })?;
 
         Ok(GameState::new(
             player_id.to_string(),
+            guild_id.to_string(),
             story_id,
             current_step,
         ))
     }
 
-    pub fn clear_game_state(&self, player_id: &str) -> Result<()> {
-        const QUERY: &str = "DELETE FROM story_state WHERE player_id = ?";
+    pub fn clear_game_state(&self, player_id: &str, guild_id: &str) -> Result<()> {
+        const QUERY: &str = "DELETE FROM story_state WHERE player_id = ?1 AND guild_id = ?2";
 
-        self.connection.execute(QUERY, [player_id])?;
+        self.connection.execute(QUERY, [player_id, guild_id])?;
 
         Ok(())
     }

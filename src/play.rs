@@ -20,14 +20,21 @@ pub const THE_END: &str = "the_end";
 
 pub struct GameState {
     pub player_id: String,
+    pub guild_id: String,
     pub story_id: i64,
     pub current_chapter: String,
 }
 
 impl GameState {
-    pub fn new(player_id: String, story_id: i64, current_chapter: String) -> Self {
+    pub fn new(
+        player_id: String,
+        guild_id: String,
+        story_id: i64,
+        current_chapter: String,
+    ) -> Self {
         Self {
             player_id,
+            guild_id,
             story_id,
             current_chapter,
         }
@@ -55,7 +62,11 @@ async fn stop_story_interaction_inner(
 ) -> Result<()> {
     let storage = handler.storage.lock().await;
     let player_id = command.user.id.to_string();
-    storage.clear_game_state(&player_id)?;
+    let guild_id = command
+        .guild_id
+        .ok_or_else(|| anyhow!("No guild id"))?
+        .to_string();
+    storage.clear_game_state(&player_id, &guild_id)?;
     drop(storage);
 
     text_interaction(
@@ -89,8 +100,12 @@ async fn play_story_interaction_inner(
 ) -> Result<()> {
     let database = handler.storage.lock().await;
     let player_id = command.user.id.to_string();
+    let guild_id = command
+        .guild_id
+        .ok_or_else(|| anyhow!("No guild id"))?
+        .to_string();
 
-    let game_state_result = database.retrieve_game_state(&player_id);
+    let game_state_result = database.retrieve_game_state(&player_id, &guild_id);
     drop(database);
 
     match game_state_result {
@@ -149,9 +164,14 @@ async fn start_new_game(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> Result<()> {
+    let guild_id = command
+        .guild_id
+        .ok_or_else(|| anyhow!("No guild id"))?
+        .to_string();
+
     println!("Starting new game");
     let storage = handler.storage.lock().await;
-    let stories = storage.list_all_stories()?;
+    let stories = storage.list_guild_stories(&guild_id)?;
 
     if stories.is_empty() {
         println!("There are no stories");
@@ -202,6 +222,11 @@ pub async fn actual_start(
         .ok_or_else(|| anyhow!("No id selected"))
         .and_then(|id| id.parse::<i64>().map_err(Into::into))?;
 
+    let guild_id = message_component
+        .guild_id
+        .ok_or_else(|| anyhow!("No guild id"))?
+        .to_string();
+
     let storage = handler.storage.lock().await;
     let content = storage.load_story_content(story_id)?;
     drop(storage);
@@ -211,7 +236,7 @@ pub async fn actual_start(
         .start()
         .ok_or_else(|| anyhow!("Story without start"))?;
     let player_id = message_component.user.id.to_string();
-    let game_state = GameState::new(player_id, story_id, start.title().to_string());
+    let game_state = GameState::new(player_id, guild_id, story_id, start.title().to_string());
     {
         let storage = handler.storage.lock().await;
         storage.update_game_state(&game_state)?;
@@ -267,8 +292,12 @@ pub async fn next_chapter(
 
     let database = handler.storage.lock().await;
     let player_id = message_component.user.id.to_string();
+    let guild_id = message_component
+        .guild_id
+        .ok_or_else(|| anyhow!("No guild id"))?
+        .to_string();
 
-    let game_state = database.retrieve_game_state(&player_id)?;
+    let game_state = database.retrieve_game_state(&player_id, &guild_id)?;
     let story_content = database.load_story_content(game_state.story_id)?;
     drop(database);
 
@@ -312,7 +341,7 @@ pub async fn next_chapter(
             ..game_state
         })?;
     } else {
-        database.clear_game_state(&player_id)?;
+        database.clear_game_state(&player_id, &guild_id)?;
     }
 
     Ok(())
@@ -324,10 +353,14 @@ pub async fn the_end(
     message_component: &MessageComponentInteraction,
 ) -> Result<()> {
     let player_id = message_component.user.id.to_string();
+    let guild_id = message_component
+        .guild_id
+        .ok_or_else(|| anyhow!("No guild id"))?
+        .to_string();
 
     {
         let database = handler.storage.lock().await;
-        database.clear_game_state(&player_id)?;
+        database.clear_game_state(&player_id, &guild_id)?;
     }
 
     message_component.defer(&ctx.http).await?;

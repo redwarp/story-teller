@@ -105,6 +105,8 @@ pub trait SlashCommandCreator {
 
 impl SlashCommandCreator for CreateApplicationCommands {
     fn create_slash_command<S: SlashCommand>(&mut self) -> &mut Self {
-        self.create_application_command(|command| S::create_application_command(command))
+        self.create_application_command(|command| {
+            S::create_application_command(command).dm_permission(false)
+        })
     }
 }
