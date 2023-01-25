@@ -1,23 +1,28 @@
 use anyhow::Result;
-use serenity::async_trait;
-use serenity::model::prelude::command::Command;
-use serenity::model::prelude::interaction::message_component::MessageComponentInteraction;
-use serenity::model::prelude::interaction::Interaction;
-use serenity::model::prelude::Ready;
-use serenity::prelude::*;
+use serenity::{
+    async_trait,
+    model::prelude::{
+        command::Command,
+        interaction::{message_component::MessageComponentInteraction, Interaction},
+        Ready,
+    },
+    prelude::*,
+};
 
-use crate::command::{
-    DeleteStoryCommand, IncrementCommand, PingCommand, PlayCommand, SlashCommand,
-    SlashCommandCreator, StopCommand, UploadStoryCommand,
-};
-use crate::interaction::{
-    actual_deletion, delete_story_interaction, increment_interaction, react_interaction,
-    text_interaction, update_message_text, upload_story_interaction, DELETE_STORY_MENU,
-};
-use crate::persistance::Storage;
-use crate::play::{
-    actual_start, next_chapter, play_story_interaction, stop_story_interaction, PICK_NEXT_PASSAGE,
-    START_STORY_MENU,
+use crate::{
+    command::{
+        DeleteStoryCommand, IncrementCommand, PingCommand, PlayCommand, SlashCommand,
+        SlashCommandCreator, StopCommand, UploadStoryCommand,
+    },
+    interaction::{
+        actual_deletion, delete_story_interaction, increment_interaction, react_interaction,
+        text_interaction, update_message_text, upload_story_interaction, DELETE_STORY_MENU,
+    },
+    persistance::Storage,
+    play::{
+        actual_start, next_chapter, play_story_interaction, stop_story_interaction, the_end,
+        PICK_NEXT_PASSAGE, START_STORY_MENU, THE_END,
+    },
 };
 
 pub struct Handler {
@@ -34,6 +39,7 @@ impl Handler {
             DELETE_STORY_MENU => actual_deletion(self, ctx, message_component).await?,
             START_STORY_MENU => actual_start(self, ctx, message_component).await?,
             PICK_NEXT_PASSAGE => next_chapter(self, ctx, message_component).await?,
+            THE_END => the_end(self, ctx, message_component).await?,
             other => {
                 println!("Message component {other}");
             }
@@ -83,6 +89,7 @@ impl EventHandler for Handler {
                 .is_err()
             {
                 let _ignored_result = update_message_text(
+                    "Error",
                     "Something went wrong, try again later.",
                     &ctx,
                     &message_component,

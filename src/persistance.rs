@@ -1,15 +1,14 @@
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rusqlite::Connection;
 use twee_v3::Story;
 use uuid::Uuid;
 
-use crate::play::GameState;
-use crate::utils::verify_story;
+use crate::{play::GameState, utils::verify_story};
 
 const CREATE_COUNTER: &str = "
 CREATE TABLE IF NOT EXISTS counter(

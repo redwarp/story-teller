@@ -1,21 +1,22 @@
-use anyhow::anyhow;
-use anyhow::Result;
-use serenity::builder::CreateComponents;
+use anyhow::{anyhow, Result};
 use serenity::{
+    builder::CreateComponents,
     model::prelude::interaction::{
         application_command::ApplicationCommandInteraction,
         message_component::MessageComponentInteraction, InteractionResponseType,
     },
     prelude::Context,
 };
-use twee_v3::Passage;
-use twee_v3::Story;
+use twee_v3::{Passage, Story};
 
-use crate::interaction::update_message_text;
-use crate::{interaction::text_interaction, Handler};
+use crate::{
+    interaction::{text_interaction, update_message_text},
+    Handler,
+};
 
 pub const START_STORY_MENU: &str = "start_story_menu";
 pub const PICK_NEXT_PASSAGE: &str = "pick_next_passage";
+pub const THE_END: &str = "the_end";
 
 pub struct GameState {
     pub player_id: String,
@@ -143,30 +144,6 @@ async fn continue_game(
     Ok(())
 }
 
-fn add_story_components<'a, 'b>(
-    components: &'a mut CreateComponents,
-    passage: &'b Passage<'b>,
-) -> &'a mut CreateComponents {
-    if passage.links().count() > 0 {
-        components.create_action_row(|row| {
-            row.create_select_menu(|menu| {
-                menu.custom_id(PICK_NEXT_PASSAGE)
-                    .placeholder("Next chapter")
-                    .options(|mut options| {
-                        for node in passage.links() {
-                            options = options.create_option(|create_option| {
-                                create_option.label(node.text).value(node.target)
-                            });
-                        }
-                        options
-                    })
-            })
-        })
-    } else {
-        components
-    }
-}
-
 async fn start_new_game(
     handler: &Handler,
     ctx: &Context,
@@ -190,7 +167,7 @@ async fn start_new_game(
                 .kind(InteractionResponseType::ChannelMessageWithSource)
                 .interaction_response_data(|message| {
                     message
-                        .embed(|embed| embed.title("Action").description(text))
+                        .embed(|embed| embed.title("Let's go").description(text))
                         .components(|components| {
                             components.create_action_row(|row| {
                                 row.create_select_menu(|menu| {
@@ -241,6 +218,7 @@ pub async fn actual_start(
     }
 
     update_message_text(
+        "Let's go",
         format!(
             "Your story `{story_name}` is starting!",
             story_name = story.title().unwrap()
@@ -338,4 +316,63 @@ pub async fn next_chapter(
     }
 
     Ok(())
+}
+
+pub async fn the_end(
+    handler: &Handler,
+    ctx: &Context,
+    message_component: &MessageComponentInteraction,
+) -> Result<()> {
+    let player_id = message_component.user.id.to_string();
+
+    {
+        let database = handler.storage.lock().await;
+        database.clear_game_state(&player_id)?;
+    }
+
+    message_component.defer(&ctx.http).await?;
+    message_component
+        .edit_original_interaction_response(&ctx.http, |response| response.components(|c| c))
+        .await?;
+
+    message_component
+        .create_followup_message(&ctx.http, |followup| {
+            followup
+                .allowed_mentions(|mentions| mentions.replied_user(true))
+                .embed(|embed| {
+                    embed.title("The end").description(
+                        "That's it for now! To start a new session, use the `/play` command.",
+                    )
+                })
+                .ephemeral(true)
+        })
+        .await?;
+
+    Ok(())
+}
+
+fn add_story_components<'a, 'b>(
+    components: &'a mut CreateComponents,
+    passage: &'b Passage<'b>,
+) -> &'a mut CreateComponents {
+    if passage.links().count() > 0 {
+        components.create_action_row(|row| {
+            row.create_select_menu(|menu| {
+                menu.custom_id(PICK_NEXT_PASSAGE)
+                    .placeholder("Next chapter")
+                    .options(|mut options| {
+                        for node in passage.links() {
+                            options = options.create_option(|create_option| {
+                                create_option.label(node.text).value(node.target)
+                            });
+                        }
+                        options
+                    })
+            })
+        })
+    } else {
+        components.create_action_row(|row| {
+            row.create_button(|create_button| create_button.custom_id(THE_END).label("The end"))
+        })
+    }
 }

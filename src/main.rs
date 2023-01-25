@@ -4,8 +4,7 @@ use anyhow::Result;
 use config::Config;
 use handler::Handler;
 use persistance::Storage;
-use serenity::framework::standard::StandardFramework;
-use serenity::prelude::*;
+use serenity::{framework::standard::StandardFramework, prelude::*};
 
 mod command;
 mod config;

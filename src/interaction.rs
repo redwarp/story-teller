@@ -1,5 +1,4 @@
-use anyhow::anyhow;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use serenity::{
     model::prelude::{
         command::CommandOptionType,
@@ -188,6 +187,7 @@ pub async fn actual_deletion(
     drop(database);
 
     update_message_text(
+        "Deletion",
         format!("Story `{story_name}` successfully deleted"),
         ctx,
         message_component,
@@ -197,8 +197,9 @@ pub async fn actual_deletion(
     Ok(())
 }
 
-pub async fn update_message_text<T: ToString>(
-    text: T,
+pub async fn update_message_text<Ti: ToString, Te: ToString>(
+    title: Ti,
+    text: Te,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) -> Result<()> {
@@ -206,7 +207,7 @@ pub async fn update_message_text<T: ToString>(
         .create_interaction_response(&ctx.http, |r| {
             r.kind(InteractionResponseType::UpdateMessage)
                 .interaction_response_data(|d| {
-                    d.embed(|embed| embed.title("Action").description(text))
+                    d.embed(|embed| embed.title(title).description(text))
                         .components(|c| c)
                 })
         })
