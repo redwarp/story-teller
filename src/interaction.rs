@@ -237,8 +237,12 @@ pub async fn update_message_text<Ti: ToString, Te: ToString>(
 }
 
 async fn fetch_attachment(attachment: &Attachment) -> Result<String, reqwest::Error> {
+    println!("Fetching attachment {}", attachment.url);
     match reqwest::get(&attachment.url).await {
         Ok(response) => response.text().await,
-        Err(e) => Err(e),
+        Err(e) => {
+            println!("Error while fetching attachment: {}", e);
+            Err(e)
+        }
     }
 }
