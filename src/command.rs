@@ -10,30 +10,6 @@ pub trait SlashCommand {
     ) -> &mut CreateApplicationCommand;
 }
 
-pub struct PingCommand;
-
-impl SlashCommand for PingCommand {
-    const NAME: &'static str = "ping";
-
-    fn create_application_command(
-        command: &mut CreateApplicationCommand,
-    ) -> &mut CreateApplicationCommand {
-        command.name(Self::NAME).description("Pings the bot")
-    }
-}
-
-pub struct IncrementCommand;
-
-impl SlashCommand for IncrementCommand {
-    const NAME: &'static str = "increment";
-
-    fn create_application_command(
-        command: &mut CreateApplicationCommand,
-    ) -> &mut CreateApplicationCommand {
-        command.name(Self::NAME).description("Increments a counter")
-    }
-}
-
 pub struct UploadStoryCommand;
 
 impl SlashCommand for UploadStoryCommand {

@@ -10,12 +10,6 @@ use uuid::Uuid;
 
 use crate::{play::GameState, utils::verify_story};
 
-const CREATE_COUNTER: &str = "
-CREATE TABLE IF NOT EXISTS counter(
-    id integer primary key,
-    count integer not null
-);";
-
 const CREATE_STORIES: &str = "
 create table if not exists stories(
     id integer PRIMARY KEY AUTOINCREMENT,
@@ -74,22 +68,6 @@ where
             connection,
             storage_folder,
         })
-    }
-
-    pub fn get_count(&self) -> Result<u32> {
-        let mut stmt = self
-            .connection
-            .prepare("select count from counter where id = 0")?;
-        let count = stmt.query_row([], |row| row.get(0))?;
-        Ok(count)
-    }
-
-    pub fn increment_count(&self) -> Result<()> {
-        let mut stmt = self
-            .connection
-            .prepare("update counter set count = count + 1 where id = 0")?;
-        stmt.execute([])?;
-        Ok(())
     }
 
     pub fn save_story(&self, guild_id: &str, story_content: &str) -> Result<SaveStory> {
@@ -259,7 +237,6 @@ where
 }
 
 fn create_tables(connection: &Connection) -> Result<()> {
-    connection.execute(CREATE_COUNTER, [])?;
     connection.execute(CREATE_STORIES, [])?;
     connection.execute(CREATE_STORY_STATE, [])?;
     Ok(())

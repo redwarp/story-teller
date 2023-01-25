@@ -8,7 +8,7 @@ use serenity::{
             message_component::MessageComponentInteraction,
             InteractionResponseType,
         },
-        Attachment, ReactionType,
+        Attachment,
     },
     prelude::Context,
 };
@@ -36,31 +36,6 @@ pub async fn text_interaction<T: ToString>(
     {
         println!("Cannot respond to slash command: {}", why);
     }
-}
-
-pub async fn increment_interaction(
-    handler: &Handler,
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
-) {
-    let database = handler.storage.lock().await;
-    database.increment_count().unwrap();
-    let count = database.get_count().unwrap();
-    let message = format!("Count is now {count}");
-
-    text_interaction(&message, ctx, command).await
-}
-
-pub async fn react_interaction(
-    reaction_type: impl Into<ReactionType>,
-    ctx: &Context,
-    command: &ApplicationCommandInteraction,
-) {
-    if let Ok(message) = command.get_interaction_response(&ctx.http).await {
-        if let Err(why) = message.react(&ctx.http, reaction_type).await {
-            println!("Cannot react to slash command: {}", why);
-        };
-    };
 }
 
 pub async fn upload_story_interaction(
