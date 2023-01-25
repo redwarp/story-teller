@@ -135,6 +135,7 @@ async fn continue_game(
                     message
                         .embed(|embed| embed.title(passage.title()).description(passage_content))
                         .components(|components| add_story_components(components, passage))
+                        .ephemeral(true)
                 })
         })
         .await?;
@@ -204,7 +205,7 @@ async fn start_new_game(
                                 })
                             })
                         })
-                        .title("Let's start the game!")
+                        .ephemeral(true)
                 })
         })
         .await?;
@@ -281,6 +282,7 @@ async fn actual_start_inner(
             message
                 .embed(|embed| embed.title(passage.title()).description(passage_content))
                 .components(|components| add_story_components(components, passage))
+                .ephemeral(true)
         })
         .await?;
 
@@ -320,16 +322,23 @@ async fn next_chapter_inner(
 
     let story = Story::try_from(story_content.as_str()).map_err(|_| anyhow!("Parsing error"))?;
 
-    // Update the previous interaction to remove the menu.
+    message_component.defer(&ctx.http).await?;
     message_component
-        .create_interaction_response(&ctx.http, |response| {
-            response
-                .kind(InteractionResponseType::DeferredUpdateMessage)
-                .interaction_response_data(|response_data| {
-                    response_data.components(|components| components)
-                })
-        })
+        .edit_original_interaction_response(&ctx.http, |response| response.components(|c| c))
         .await?;
+
+    // // Update the previous interaction to remove the menu.
+    // message_component
+    //     .create_interaction_response(&ctx.http, |response| {
+    //         response
+    //             .kind(InteractionResponseType::DeferredUpdateMessage)
+    //             .interaction_response_data(|response_data| {
+    //                 response_data
+    //                     .components(|components| components)
+    //                     .ephemeral(true)
+    //             })
+    //     })
+    //     .await?;
 
     let passage = story
         .get_passage(next_chapter)
@@ -346,11 +355,12 @@ async fn next_chapter_inner(
     }
 
     message_component
-        .create_followup_message(&ctx.http, |message| {
-            message
+        .create_followup_message(&ctx.http, |followup| {
+            followup
                 .allowed_mentions(|mentions| mentions.replied_user(true))
                 .embed(|embed| embed.title(passage.title()).description(passage_content))
                 .components(|components| add_story_components(components, passage))
+                .ephemeral(true)
         })
         .await?;
 
