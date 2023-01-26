@@ -20,8 +20,9 @@ use crate::{
     },
     persistance::Storage,
     play::{
-        actual_start, next_chapter, play_story_interaction, stop_story_interaction, the_end,
-        PICK_NEXT_PASSAGE, START_STORY_MENU, THE_END,
+        actual_start, next_chapter_from_button, next_chapter_from_menu, play_story_interaction,
+        stop_story_interaction, the_end, PICK_NEXT_PASSAGE, PICK_NEXT_PASSAGE_BUTTON,
+        START_STORY_MENU, THE_END,
     },
 };
 
@@ -38,9 +39,13 @@ impl Handler {
         match message_component.data.custom_id.as_str() {
             DELETE_STORY_MENU => actual_deletion(self, ctx, message_component).await?,
             START_STORY_MENU => actual_start(self, ctx, message_component).await?,
-            PICK_NEXT_PASSAGE => next_chapter(self, ctx, message_component).await?,
+            PICK_NEXT_PASSAGE => next_chapter_from_menu(self, ctx, message_component).await?,
             THE_END => the_end(self, ctx, message_component).await?,
             other => {
+                if let Some(_) = other.find(PICK_NEXT_PASSAGE_BUTTON) {
+                    // This is passage with a single selection
+                    next_chapter_from_button(self, ctx, message_component).await?;
+                }
                 println!("Message component {other}");
             }
         }

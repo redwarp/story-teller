@@ -16,6 +16,7 @@ use crate::{
 
 pub const START_STORY_MENU: &str = "start_story_menu";
 pub const PICK_NEXT_PASSAGE: &str = "pick_next_passage";
+pub const PICK_NEXT_PASSAGE_BUTTON: &str = "pick_next_passage_button";
 pub const THE_END: &str = "the_end";
 
 pub struct GameState {
@@ -279,17 +280,36 @@ pub async fn actual_start(
     Ok(())
 }
 
-pub async fn next_chapter(
+pub async fn next_chapter_from_menu(
     handler: &Handler,
     ctx: &Context,
     message_component: &MessageComponentInteraction,
 ) -> Result<()> {
-    let next_chapter = message_component
+    let chapter_name = message_component
         .data
         .values
         .first()
         .ok_or_else(|| anyhow!("No chapter selected"))?;
 
+    next_chapter(handler, ctx, message_component, chapter_name).await
+}
+
+pub async fn next_chapter_from_button(
+    handler: &Handler,
+    ctx: &Context,
+    message_component: &MessageComponentInteraction,
+) -> Result<()> {
+    let chapter_name = &message_component.data.custom_id[PICK_NEXT_PASSAGE_BUTTON.len()..];
+
+    next_chapter(handler, ctx, message_component, chapter_name).await
+}
+
+pub async fn next_chapter(
+    handler: &Handler,
+    ctx: &Context,
+    message_component: &MessageComponentInteraction,
+    chapter_name: &str,
+) -> Result<()> {
     let database = handler.storage.lock().await;
     let player_id = message_component.user.id.to_string();
     let guild_id = message_component
@@ -310,7 +330,7 @@ pub async fn next_chapter(
         .await?;
 
     let passage = story
-        .get_passage(next_chapter)
+        .get_passage(chapter_name)
         .ok_or_else(|| anyhow!("Couldn't retrieve passage"))?;
 
     let mut passage_content = String::new();
@@ -337,7 +357,7 @@ pub async fn next_chapter(
 
     if passage.links().count() > 0 {
         database.update_game_state(&GameState {
-            current_chapter: next_chapter.clone(),
+            current_chapter: chapter_name.to_string(),
             ..game_state
         })?;
     } else {
@@ -388,8 +408,19 @@ fn add_story_components<'a, 'b>(
     components: &'a mut CreateComponents,
     passage: &'b Passage<'b>,
 ) -> &'a mut CreateComponents {
-    if passage.links().count() > 0 {
-        components.create_action_row(|row| {
+    match passage.links().count() {
+        0 => components.create_action_row(|row| {
+            row.create_button(|create_button| create_button.custom_id(THE_END).label("The end"))
+        }),
+        1 => components.create_action_row(|row| {
+            let link = passage.links().next().expect("one link");
+            row.create_button(|create_button| {
+                create_button
+                    .custom_id(format!("{}{}", PICK_NEXT_PASSAGE_BUTTON, link.target))
+                    .label(link.text)
+            })
+        }),
+        _ => components.create_action_row(|row| {
             row.create_select_menu(|menu| {
                 menu.custom_id(PICK_NEXT_PASSAGE)
                     .placeholder("Next chapter")
@@ -402,10 +433,6 @@ fn add_story_components<'a, 'b>(
                         options
                     })
             })
-        })
-    } else {
-        components.create_action_row(|row| {
-            row.create_button(|create_button| create_button.custom_id(THE_END).label("The end"))
-        })
+        }),
     }
 }

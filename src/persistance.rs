@@ -51,18 +51,8 @@ where
         }
         let database_path = storage_folder.as_ref().join("data.sqlite");
         let connection = Connection::open(database_path)?;
-        let mut check = connection
-            .prepare("SELECT name FROM sqlite_schema where type='table' and name='counter'")?;
-
-        let exists = check.exists([])?;
-        drop(check);
 
         create_tables(&connection)?;
-
-        if !exists {
-            println!("No table yet, creating");
-            connection.execute("insert into counter (id, count) values (0, 0)", [])?;
-        }
 
         Ok(Self {
             connection,
@@ -174,7 +164,7 @@ where
         const QUERY: &str =
             "INSERT OR REPLACE into story_state (player_id, guild_id, story_id, current_step) VALUES
         (?1, ?2, ?3, ?4)";
-        let affected = self.connection.execute(
+        self.connection.execute(
             QUERY,
             (
                 &game_state.player_id,
@@ -183,7 +173,6 @@ where
                 &game_state.current_chapter,
             ),
         )?;
-        println!("Affected rows when updating game state: {}", affected);
         Ok(())
     }
 
