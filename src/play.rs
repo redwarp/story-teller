@@ -7,7 +7,7 @@ use serenity::{
     },
     prelude::Context,
 };
-use twee_v3::{Passage, Story};
+use twee_v3::Passage;
 
 use crate::{
     interaction::{text_interaction, update_message_text},
@@ -126,9 +126,8 @@ async fn continue_game(
     println!("Continuing game");
 
     let database = handler.storage.lock().await;
-    let story_content = database.load_story_content(game_state.story_id)?;
+    let story = database.load_story(game_state.story_id)?;
     drop(database);
-    let story = Story::try_from(story_content.as_str()).map_err(|_| anyhow!("Parsing error"))?;
 
     let passage = story
         .get_passage(&game_state.current_chapter)
@@ -151,7 +150,7 @@ async fn continue_game(
                 .interaction_response_data(|message| {
                     message
                         .embed(|embed| embed.title(passage.title()).description(passage_content))
-                        .components(|components| add_story_components(components, passage))
+                        .components(|components| add_story_components(components, &passage))
                         .ephemeral(true)
                 })
         })
@@ -229,10 +228,9 @@ pub async fn actual_start(
         .to_string();
 
     let storage = handler.storage.lock().await;
-    let content = storage.load_story_content(story_id)?;
+    let story = storage.load_story(story_id)?;
     drop(storage);
 
-    let story = Story::try_from(content.as_str()).map_err(|_| anyhow!("Parsing error"))?;
     let start = story
         .start()
         .ok_or_else(|| anyhow!("Story without start"))?;
@@ -272,7 +270,7 @@ pub async fn actual_start(
         .create_followup_message(&ctx.http, |message| {
             message
                 .embed(|embed| embed.title(passage.title()).description(passage_content))
-                .components(|components| add_story_components(components, passage))
+                .components(|components| add_story_components(components, &passage))
                 .ephemeral(true)
         })
         .await?;
@@ -318,10 +316,8 @@ pub async fn next_chapter(
         .to_string();
 
     let game_state = database.retrieve_game_state(&player_id, &guild_id)?;
-    let story_content = database.load_story_content(game_state.story_id)?;
+    let story = database.load_story(game_state.story_id)?;
     drop(database);
-
-    let story = Story::try_from(story_content.as_str()).map_err(|_| anyhow!("Parsing error"))?;
 
     // Update the previous interaction to remove the menu.
     message_component.defer(&ctx.http).await?;
@@ -348,7 +344,7 @@ pub async fn next_chapter(
             followup
                 .allowed_mentions(|mentions| mentions.replied_user(true))
                 .embed(|embed| embed.title(passage.title()).description(passage_content))
-                .components(|components| add_story_components(components, passage))
+                .components(|components| add_story_components(components, &passage))
                 .ephemeral(true)
         })
         .await?;
@@ -406,7 +402,7 @@ pub async fn the_end(
 
 fn add_story_components<'a, 'b>(
     components: &'a mut CreateComponents,
-    passage: &'b Passage<'b>,
+    passage: &'b Passage<&'b str>,
 ) -> &'a mut CreateComponents {
     match passage.links().count() {
         0 => components.create_action_row(|row| {

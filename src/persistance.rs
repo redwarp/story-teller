@@ -204,7 +204,7 @@ where
         Ok(())
     }
 
-    pub fn load_story_content(&self, story_id: i64) -> Result<String> {
+    pub fn load_story(&self, story_id: i64) -> Result<Story<String>> {
         const QUERY: &str = "SELECT filename FROM stories WHERE id = ?";
         let filename: String = self
             .connection
@@ -212,8 +212,9 @@ where
 
         let path = self.stories_folder()?.join(filename);
         let content = fs::read_to_string(path)?;
+        let story = Story::try_from(content)?;
 
-        Ok(content)
+        Ok(story)
     }
 
     fn stories_folder(&self) -> Result<PathBuf> {

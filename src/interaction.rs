@@ -34,7 +34,7 @@ pub async fn text_interaction<T: ToString>(
         })
         .await
     {
-        println!("Cannot respond to slash command: {}", why);
+        println!("Cannot respond to slash command: {why}");
     }
 }
 
@@ -163,7 +163,7 @@ pub async fn delete_story_interaction(
         })
         .await
     {
-        println!("Cannot respond to slash command: {}", why);
+        println!("Cannot respond to slash command: {why}");
     }
 }
 
@@ -223,7 +223,7 @@ async fn fetch_attachment(attachment: &Attachment) -> Result<String, reqwest::Er
     match client.get(&attachment.url).send().await {
         Ok(response) => response.text().await,
         Err(e) => {
-            println!("Error while fetching attachment: {}", e);
+            println!("Error while fetching attachment: {e}");
             Err(e)
         }
     }

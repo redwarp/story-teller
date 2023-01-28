@@ -42,7 +42,7 @@ impl Handler {
             PICK_NEXT_PASSAGE => next_chapter_from_menu(self, ctx, message_component).await?,
             THE_END => the_end(self, ctx, message_component).await?,
             other => {
-                if let Some(_) = other.find(PICK_NEXT_PASSAGE_BUTTON) {
+                if other.starts_with(PICK_NEXT_PASSAGE_BUTTON) {
                     // This is passage with a single selection
                     next_chapter_from_button(self, ctx, message_component).await?;
                 }
