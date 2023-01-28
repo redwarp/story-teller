@@ -1,6 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
@@ -8,7 +9,7 @@ use rusqlite::Connection;
 use twee_v3::Story;
 use uuid::Uuid;
 
-use crate::{play::GameState, utils::verify_story};
+use crate::{collections::ExpiringHashMap, play::GameState};
 
 const CREATE_STORIES: &str = "
 create table if not exists stories(
@@ -39,6 +40,7 @@ pub enum SaveStory {
 pub struct Storage<P: AsRef<Path>> {
     storage_folder: P,
     connection: Connection,
+    stories: ExpiringHashMap<String, Story<String>>,
 }
 
 impl<P> Storage<P>
@@ -51,27 +53,23 @@ where
         }
         let database_path = storage_folder.as_ref().join("data.sqlite");
         let connection = Connection::open(database_path)?;
+        let stories = ExpiringHashMap::new(Duration::from_secs(300));
 
         create_tables(&connection)?;
 
         Ok(Self {
             connection,
             storage_folder,
+            stories,
         })
     }
 
-    pub fn save_story(&self, guild_id: &str, story_content: &str) -> Result<SaveStory> {
-        if !verify_story(story_content) {
-            return Err(anyhow!("Invalid story"));
-        }
+    pub fn save_story(&mut self, guild_id: &str, story_content: &str) -> Result<SaveStory> {
+        let story = Story::try_from(story_content)
+            .map_err(|_| anyhow!("Invalid story"))?
+            .into_owned();
 
-        let story = Story::try_from(story_content).expect("Already verified");
-
-        let name = if let Some(title) = story.title() {
-            title
-        } else {
-            return Err(anyhow!("Story without title"));
-        };
+        let name = story.title().ok_or(anyhow!("Story without title"))?;
 
         let (filename, file_path) = loop {
             let filename = format!("{}.twee", Uuid::new_v4());
@@ -93,6 +91,7 @@ where
 
             return Err(e.into());
         }
+        self.stories.insert(name.to_string(), story);
 
         Ok(match did_overwrite {
             true => SaveStory::Update,
@@ -100,7 +99,7 @@ where
         })
     }
 
-    fn cleanup_previous(&self, guild_id: &str, name: &str) -> Result<bool> {
+    fn cleanup_previous(&mut self, guild_id: &str, name: &str) -> Result<bool> {
         const QUERY: &str = "SELECT id FROM stories WHERE guild_id = ?1 AND name = ?2";
         match self
             .connection
@@ -116,7 +115,7 @@ where
     }
 
     /// Delete story with the id, and returns the name of the deleted story.
-    pub fn delete_story(&self, story_id: i64) -> Result<String> {
+    pub fn delete_story(&mut self, story_id: i64) -> Result<String> {
         let (name, filename) = self.connection.query_row(
             "SELECT name, filename FROM stories WHERE `id`=?",
             [story_id],
@@ -126,6 +125,7 @@ where
                 Ok((name, filename))
             },
         )?;
+        self.stories.remove(&name);
 
         let count = self
             .connection
@@ -204,17 +204,22 @@ where
         Ok(())
     }
 
-    pub fn load_story(&self, story_id: i64) -> Result<Story<String>> {
-        const QUERY: &str = "SELECT filename FROM stories WHERE id = ?";
-        let filename: String = self
-            .connection
-            .query_row(QUERY, [story_id], |row| row.get(0))?;
+    pub fn get_story(&mut self, story_id: i64) -> Result<Story<String>> {
+        const QUERY: &str = "SELECT name, filename FROM stories WHERE id = ?";
+        let (name, filename): (String, String) =
+            self.connection
+                .query_row(QUERY, [story_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
 
-        let path = self.stories_folder()?.join(filename);
-        let content = fs::read_to_string(path)?;
-        let story = Story::try_from(content)?;
+        if let Some(story) = self.stories.get(&name) {
+            Ok(story.clone())
+        } else {
+            let path = self.stories_folder()?.join(filename);
+            let content = fs::read_to_string(path)?;
+            let story = Story::try_from(content)?;
 
-        Ok(story)
+            self.stories.insert(name.clone(), story.clone());
+            Ok(story)
+        }
     }
 
     fn stories_folder(&self) -> Result<PathBuf> {

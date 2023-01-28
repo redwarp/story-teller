@@ -6,6 +6,7 @@ use handler::Handler;
 use persistance::Storage;
 use serenity::{framework::standard::StandardFramework, prelude::*};
 
+mod collections;
 mod command;
 mod config;
 mod handler;

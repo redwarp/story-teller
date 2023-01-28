@@ -125,8 +125,8 @@ async fn continue_game(
 ) -> Result<()> {
     println!("Continuing game");
 
-    let database = handler.storage.lock().await;
-    let story = database.load_story(game_state.story_id)?;
+    let mut database = handler.storage.lock().await;
+    let story = database.get_story(game_state.story_id)?;
     drop(database);
 
     let passage = story
@@ -227,8 +227,8 @@ pub async fn actual_start(
         .ok_or_else(|| anyhow!("No guild id"))?
         .to_string();
 
-    let storage = handler.storage.lock().await;
-    let story = storage.load_story(story_id)?;
+    let mut storage = handler.storage.lock().await;
+    let story = storage.get_story(story_id)?;
     drop(storage);
 
     let start = story
@@ -308,7 +308,7 @@ pub async fn next_chapter(
     message_component: &MessageComponentInteraction,
     chapter_name: &str,
 ) -> Result<()> {
-    let database = handler.storage.lock().await;
+    let mut database = handler.storage.lock().await;
     let player_id = message_component.user.id.to_string();
     let guild_id = message_component
         .guild_id
@@ -316,7 +316,7 @@ pub async fn next_chapter(
         .to_string();
 
     let game_state = database.retrieve_game_state(&player_id, &guild_id)?;
-    let story = database.load_story(game_state.story_id)?;
+    let story = database.get_story(game_state.story_id)?;
     drop(database);
 
     // Update the previous interaction to remove the menu.

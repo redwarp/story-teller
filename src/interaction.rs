@@ -62,7 +62,7 @@ pub async fn upload_story_interaction(
         if let Ok(content) = fetch_attachment(attachment).await {
             let story_title = story_title(&content);
             if story_title.is_some() {
-                let database = handler.storage.lock().await;
+                let mut database = handler.storage.lock().await;
                 let answer = match database.save_story(&guild_id, &content) {
                     Ok(save_story) => match save_story {
                         SaveStory::New => {
@@ -179,7 +179,7 @@ pub async fn actual_deletion(
         .ok_or_else(|| anyhow!("No id selected"))
         .and_then(|id| id.parse::<i64>().map_err(Into::into))?;
 
-    let database = handler.storage.lock().await;
+    let mut database = handler.storage.lock().await;
     let story_name = database.delete_story(story_id)?;
     drop(database);
 
