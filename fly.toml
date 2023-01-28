@@ -5,6 +5,7 @@ kill_timeout = 5
 processes = []
 
 [env]
+SAVE_FOLDER = "/data/save"
 
 [experimental]
 auto_rollback = true

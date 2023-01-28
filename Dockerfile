@@ -1,4 +1,4 @@
-FROM rust:1.66.1 as builder
+FROM rust:1.67 as builder
 
 # Make a fake Rust app to keep a cached layer of compiled crates
 RUN USER=root cargo new app
