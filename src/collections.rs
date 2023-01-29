@@ -1,8 +1,10 @@
-use std::borrow::Borrow;
-use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
-use std::collections::{BinaryHeap, HashMap};
-use std::hash::Hash;
-use std::time::{Duration, Instant};
+use std::{
+    borrow::Borrow,
+    cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
+    collections::{BinaryHeap, HashMap},
+    hash::Hash,
+    time::{Duration, Instant},
+};
 
 struct Access<K> {
     instant: Instant,
